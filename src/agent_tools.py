@@ -59,7 +59,9 @@ def data_source_status() -> dict:
 def _load_positions() -> pd.DataFrame:
     status = data_source_status()
     path = status["path"]
-    return pd.read_csv(path, parse_dates=["timestamp"])
+    df = pd.read_csv(path, parse_dates=["timestamp"])
+    df["mmsi"] = df["mmsi"].astype(str)
+    return df
 
 
 def get_flagged_vessels() -> list[dict]:

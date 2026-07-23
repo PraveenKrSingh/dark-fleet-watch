@@ -35,7 +35,27 @@ MALACCA_BBOX = [[1.0, 98.0], [6.5, 104.5]]
 HORMUZ_BBOX = [[24.0, 54.0], [28.0, 59.0]]
 
 
-def collect(minutes: float, out_path: str, bbox=None):
+def _checkpoint_save(rows: list, out_path: str):
+    """Save whatever has been captured so far, merged with existing file -- called
+    periodically during long captures so progress is visible and nothing is lost
+    if the run is interrupted."""
+    if not rows:
+        return
+    df = pd.DataFrame(rows)
+    df["mmsi"] = df["mmsi"].astype(str)
+    out_file = Path(out_path)
+    if out_file.exists():
+        existing = pd.read_csv(out_file, parse_dates=["timestamp"])
+        existing["mmsi"] = existing["mmsi"].astype(str)
+        combined = pd.concat([existing, df], ignore_index=True)
+        combined = combined.drop_duplicates(subset=["mmsi", "timestamp"]).sort_values("timestamp")
+    else:
+        combined = df.sort_values("timestamp")
+    combined.to_csv(out_path, index=False)
+    print(f"  [checkpoint] {len(combined)} total reports, {combined['mmsi'].nunique()} vessels saved to {out_path}")
+
+
+def collect(minutes: float, out_path: str, bbox=None, checkpoint_every_minutes: float = 5.0):
     if not API_KEY:
         raise SystemExit("AISSTREAM_API_KEY not found -- check your .env file")
     bbox = bbox or MALACCA_BBOX
@@ -89,11 +109,27 @@ def collect(minutes: float, out_path: str, bbox=None):
             on_error=on_error,
             on_close=on_close,
         )
+
+        checkpoint_timer_holder = {}
+
+        def _periodic_checkpoint():
+            if rows:
+                _checkpoint_save(list(rows), out_path)
+                rows.clear()
+            checkpoint_timer_holder["timer"] = threading.Timer(checkpoint_every_minutes * 60, _periodic_checkpoint)
+            checkpoint_timer_holder["timer"].daemon = True
+            checkpoint_timer_holder["timer"].start()
+
+        checkpoint_timer_holder["timer"] = threading.Timer(checkpoint_every_minutes * 60, _periodic_checkpoint)
+        checkpoint_timer_holder["timer"].daemon = True
+        checkpoint_timer_holder["timer"].start()
+
         timeout_timer = threading.Timer(minutes * 60, ws.close)
         timeout_timer.daemon = True
         timeout_timer.start()
         ws.run_forever()
         timeout_timer.cancel()
+        checkpoint_timer_holder["timer"].cancel()
         if not had_error[0]:
             # clean connection -- whether or not vessels were seen, this was a real read
             break
@@ -104,21 +140,14 @@ def collect(minutes: float, out_path: str, bbox=None):
         else:
             print("all retries exhausted -- AISStream may be overloaded right now, try again later")
 
-    df = pd.DataFrame(rows)
-
-    out_file = Path(out_path)
-    if out_file.exists() and not df.empty:
-        existing = pd.read_csv(out_file, parse_dates=["timestamp"])
-        combined = pd.concat([existing, df], ignore_index=True)
-        combined = combined.drop_duplicates(subset=["mmsi", "timestamp"]).sort_values("timestamp")
-        combined.to_csv(out_path, index=False)
-        print(f"\nappended {len(df)} new reports -- {len(combined)} total across "
-              f"{combined['mmsi'].nunique()} vessels now in {out_path}")
-    elif not df.empty:
-        df.to_csv(out_path, index=False)
-        print(f"\nsaved {len(df)} position reports to {out_path}")
+    # final save catches whatever accumulated since the last checkpoint
+    if rows:
+        _checkpoint_save(rows, out_path)
+    if Path(out_path).exists():
+        final = pd.read_csv(out_path)
+        print(f"\ndone -- {len(final)} total reports across {final['mmsi'].nunique()} vessels in {out_path}")
     else:
-        print(f"\nno data captured this run -- {out_path} unchanged")
+        print(f"\nno data captured this run -- {out_path} was never created")
 
 
 if __name__ == "__main__":
