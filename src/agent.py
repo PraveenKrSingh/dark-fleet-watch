@@ -38,6 +38,8 @@ SYSTEM_PROMPT = (
     "find_vessel_by_name first to resolve it -- never guess or construct an MMSI from a name. "
     "Call at most one tool per turn and wait for its actual result before calling a second, "
     "dependent tool -- never write one function call as the argument value of another. "
+    "If a tool returns an error saying an MMSI does not exist, report that directly to the "
+    "user -- do not then guess a vessel name to search for unless the user actually gave one. "
     "Keep answers concise and factual, like a briefing, not a chatbot."
 )
 
