@@ -13,11 +13,53 @@ import pandas as pd
 from anomaly_detection import run_all_detectors
 from mid_lookup import mid_to_iso
 
-_DATA_PATH = Path(__file__).resolve().parent.parent / "data" / "hormuz_synthetic.csv"
+_SYNTHETIC_PATH = Path(__file__).resolve().parent.parent / "data" / "malacca_synthetic.csv"
+_LIVE_PATH = Path(__file__).resolve().parent.parent / "data" / "malacca_live.csv"
+
+# Minimum time span of live data before we trust it to actually surface anomalies --
+# our detectors need hours of history (a 4h+ gap, a 3h+ loiter), not a snapshot.
+_MIN_LIVE_HOURS = 4.0
+
+
+def live_traffic_summary() -> dict:
+    """Report real observed live AIS activity in the Malacca box, independent of
+    whether it's enough data to run the anomaly detectors. A low count here is
+    itself a meaningful signal (e.g. vessels going dark in a conflict zone),
+    so we surface it honestly rather than hiding it behind the synthetic fallback."""
+    if not _LIVE_PATH.exists():
+        return {"captured": False, "reason": "live capture not started yet"}
+    live = pd.read_csv(_LIVE_PATH, parse_dates=["timestamp"])
+    if live.empty:
+        return {"captured": True, "positions": 0, "vessels": 0, "span_hours": 0.0}
+    span_hours = (live["timestamp"].max() - live["timestamp"].min()).total_seconds() / 3600
+    return {
+        "captured": True,
+        "positions": len(live),
+        "vessels": int(live["mmsi"].nunique()),
+        "span_hours": round(span_hours, 1),
+    }
+
+
+def data_source_status() -> dict:
+    """Report which dataset is currently active and why -- used by the UI to be
+    honest about whether the map/flags reflect live or synthetic data."""
+    if _LIVE_PATH.exists():
+        live = pd.read_csv(_LIVE_PATH, parse_dates=["timestamp"])
+        if not live.empty:
+            span_hours = (live["timestamp"].max() - live["timestamp"].min()).total_seconds() / 3600
+            if span_hours >= _MIN_LIVE_HOURS:
+                return {"source": "live", "path": str(_LIVE_PATH),
+                        "span_hours": round(span_hours, 1), "vessels": int(live["mmsi"].nunique())}
+            return {"source": "synthetic", "path": str(_SYNTHETIC_PATH),
+                    "reason": f"live data only spans {span_hours:.1f}h, need {_MIN_LIVE_HOURS}h+ "
+                              "for the detectors to be meaningful -- keep the fetch script running longer"}
+    return {"source": "synthetic", "path": str(_SYNTHETIC_PATH), "reason": "no live data captured yet"}
 
 
 def _load_positions() -> pd.DataFrame:
-    return pd.read_csv(_DATA_PATH, parse_dates=["timestamp"])
+    status = data_source_status()
+    path = status["path"]
+    return pd.read_csv(path, parse_dates=["timestamp"])
 
 
 def get_flagged_vessels() -> list[dict]:

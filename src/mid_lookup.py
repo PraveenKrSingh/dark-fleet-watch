@@ -31,6 +31,11 @@ MID_TO_ISO = {
     "537": "mh",  # Marshall Islands
     "352": "pa",  # (overlaps commonly seen in practice; verify against full ITU table)
     "563": "sg",  # Singapore
+    "525": "id",  # Indonesia
+    "533": "my",  # Malaysia
+    "548": "my",  # Malaysia (secondary)
+    "567": "th",  # Thailand
+    "574": "vn",  # Vietnam
     "477": "hk",  # Hong Kong
     "412": "cn",  # China
     "413": "cn",

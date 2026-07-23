@@ -25,20 +25,20 @@ load_dotenv()
 API_KEY = os.environ.get("AISSTREAM_API_KEY")
 
 # Bounding box: [[lat_min, lon_min], [lat_max, lon_max]]
-# Widened beyond just the strait itself to also cover the Persian Gulf entrance
-# and Gulf of Oman approach waters -- vessels may be loitering there, deciding
-# whether to risk the transit at all, which is its own meaningful signal.
-HORMUZ_BBOX = [[24.0, 54.0], [28.0, 59.0]]
+# Primary target: the Strait of Malacca, from the Andaman Sea approach down
+# through the Singapore Strait -- a genuinely busy, verified-live corridor.
+MALACCA_BBOX = [[1.0, 98.0], [6.5, 104.5]]
 
-# Known always-busy shipping lane, for diagnosing whether "no data" is a
-# connection problem or genuinely sparse traffic in the Hormuz box specifically.
-MALACCA_BBOX = [[1.0, 103.0], [3.0, 104.5]]
+# Kept as an optional comparison region -- this is where we discovered
+# AISStream has a real coverage gap, likely due to sparse volunteer AIS
+# receiver infrastructure on the Iranian coastline.
+HORMUZ_BBOX = [[24.0, 54.0], [28.0, 59.0]]
 
 
 def collect(minutes: float, out_path: str, bbox=None):
     if not API_KEY:
         raise SystemExit("AISSTREAM_API_KEY not found -- check your .env file")
-    bbox = bbox or HORMUZ_BBOX
+    bbox = bbox or MALACCA_BBOX
 
     rows = []
     had_error = [False]
@@ -124,10 +124,10 @@ def collect(minutes: float, out_path: str, bbox=None):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--minutes", type=float, default=5.0, help="how long to listen")
-    parser.add_argument("--out", type=str, default="data/hormuz_live.csv")
-    parser.add_argument("--region", type=str, default="hormuz", choices=["hormuz", "malacca"],
-                         help="malacca is a diagnostic option -- a known always-busy strait, "
-                              "to test whether the connection itself works")
+    parser.add_argument("--out", type=str, default="data/malacca_live.csv")
+    parser.add_argument("--region", type=str, default="malacca", choices=["malacca", "hormuz"],
+                         help="hormuz is kept as an optional comparison region -- known to have "
+                              "sparse AISStream coverage, useful context but not the main target")
     args = parser.parse_args()
-    chosen_bbox = MALACCA_BBOX if args.region == "malacca" else HORMUZ_BBOX
+    chosen_bbox = HORMUZ_BBOX if args.region == "hormuz" else MALACCA_BBOX
     collect(args.minutes, args.out, bbox=chosen_bbox)

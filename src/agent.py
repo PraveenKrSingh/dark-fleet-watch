@@ -26,7 +26,7 @@ client = Groq(api_key=os.environ["GROQ_API_KEY"])
 MODEL = "llama-3.3-70b-versatile"
 
 SYSTEM_PROMPT = (
-    "You are a maritime intelligence analyst assistant for the Strait of Hormuz. "
+    "You are a maritime intelligence analyst assistant for the Strait of Malacca. "
     "You have tools to look up flagged vessels, a vessel's position history, and "
     "why a specific vessel was flagged. Use the tools to ground every factual claim -- "
     "never invent vessel names, MMSIs, or reasons. If a question needs more than one "
