@@ -1,0 +1,8 @@
+streamlit
+pandas
+numpy
+folium
+streamlit-folium
+python-dotenv
+groq
+websocket-client
