@@ -105,22 +105,22 @@ def ask(question: str, max_tool_hops: int = 4) -> str:
     ]
 
     for _ in range(max_tool_hops):
-        try:
-            response = client.chat.completions.create(
-                model=MODEL, messages=messages, tools=TOOLS, tool_choice="auto",
-            )
-        except BadRequestError as e:
-            if "tool_use_failed" in str(e):
-                print("  [note] model produced a malformed tool call -- retrying once")
-                try:
-                    response = client.chat.completions.create(
-                        model=MODEL, messages=messages, tools=TOOLS, tool_choice="auto",
-                    )
-                except BadRequestError:
-                    return ("I had trouble forming a valid tool call for this question -- "
-                            "could you try rephrasing it, e.g. asking about one vessel at a time?")
-            else:
-                raise
+        response = None
+        for retry in range(4):
+            try:
+                response = client.chat.completions.create(
+                    model=MODEL, messages=messages, tools=TOOLS, tool_choice="auto",
+                )
+                break
+            except BadRequestError as e:
+                if "tool_use_failed" not in str(e):
+                    raise
+                if retry < 3:
+                    print(f"  [note] model produced a malformed tool call -- retrying ({retry + 1}/3)")
+                else:
+                    return ("I had trouble forming a valid tool call for this question after "
+                            "several attempts -- could you try rephrasing it, e.g. asking about "
+                            "one vessel at a time?")
         msg = response.choices[0].message
 
         if not msg.tool_calls:
